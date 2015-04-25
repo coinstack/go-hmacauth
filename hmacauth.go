@@ -88,21 +88,21 @@ func HMACAuth(options Options) middleware {
 							for _, header := range options.SignedHeaders {
 								if header == contentMD5 {
 									// then there should be MD5 hash for body
-									if req.Header.Get(contentMD5) != "" {
-										// read body
-										bodyBytes, _ := ioutil.ReadAll(req.Body)
-										// calculate MD5
-										md5String := fmt.Sprintf("%x", md5.Sum(bodyBytes))
-										// compare to MD5 given
-										if req.Header.Get(contentMD5) != md5String {
-											err = HMACAuthError{invalidMD5}
+									bodyBytes, _ := ioutil.ReadAll(req.Body)
+									bodyBytesLength := len(bodyBytes)
+									if bodyBytesLength > 0 {
+										if req.Header.Get(contentMD5) == "" {
+											err = HMACAuthError{missingMD5}
 										} else {
-											// restore body
-											req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+											// calculate MD5
+											md5String := fmt.Sprintf("%x", md5.Sum(bodyBytes))
+											// compare to MD5 given
+											if req.Header.Get(contentMD5) != md5String {
+												err = HMACAuthError{invalidMD5}
+											}
 										}
-									} else {
-										err = HMACAuthError{missingMD5}
 									}
+									req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
 								}
 							}
 						}
