@@ -5,11 +5,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"log"
 	"net/http"
-	"sort"
 	"strings"
 	"time"
-	"log"
 )
 
 const (
@@ -116,14 +115,14 @@ func stringToSign(req *http.Request, options *Options, timestamp string) (string
 	buffer.WriteString(newline)
 
 	// Headers
-	sort.Strings(options.SignedHeaders)
 	for _, header := range options.SignedHeaders {
 		val := req.Header.Get(header)
 		if val == empty {
-			return empty, HeaderMissingError{header}
+			buffer.WriteString(newline)
+		} else {
+			buffer.WriteString(val)
+			buffer.WriteString(newline)
 		}
-		buffer.WriteString(val)
-		buffer.WriteString(newline)
 	}
 
 	return buffer.String(), nil

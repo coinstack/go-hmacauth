@@ -163,8 +163,8 @@ func Test_stringToSign_with_headers(t *testing.T) {
 
 func Test_stringToSign_with_ordered_headers(t *testing.T) {
 	req, _ := http.NewRequest("GET", "http://testhost.test/some/path?key=value&more=stuff", nil)
-	req.Header.Add("A-Test", "12345678")
 	req.Header.Add("B-Test", "87654321")
+	req.Header.Add("A-Test", "12345678")
 
 	timestampStr := time.Now().Format(time.RFC3339)
 	options := Options{
@@ -176,8 +176,8 @@ func Test_stringToSign_with_ordered_headers(t *testing.T) {
 		"testhost.test\n" +
 		"/some/path?key=value&more=stuff\n" +
 		timestampStr + "\n" +
-		"12345678\n" +
-		"87654321\n"
+		"87654321\n" +
+		"12345678\n"
 
 	expect(t, err, nil)
 	expect(t, expectedStr, str)
@@ -193,8 +193,15 @@ func Test_stringToSign_missing_required_header(t *testing.T) {
 	}
 
 	str, err := stringToSign(req, &options, timestampStr)
-	refute(t, err, nil)
-	expect(t, "", str)
+	expectedStr := "GET\n" +
+		"testhost.test\n" +
+		"/some/path?key=value&more=stuff\n" +
+		timestampStr + "\n" +
+		"12345678\n" +
+		"\n"
+
+	expect(t, err, nil)
+	expect(t, expectedStr, str)
 }
 
 func Test_HMACAuth_invalid_options(t *testing.T) {
