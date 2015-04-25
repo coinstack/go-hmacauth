@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -76,14 +77,13 @@ func HMACAuth(options Options) middleware {
 		if ab, err = parseAuthHeader(req.Header.Get(authorizationHeader)); err == nil {
 			if err = validateTimestamp(ab.Timestamp, &options); err == nil {
 				var sts string
-				if sts, err = stringToSign(req, &options, ab.TimestampString); err == nil {
-					if sk := options.SecretKey(ab.APIKey); sk != empty {
-						if ab.Signature != signString(sts, sk) {
-							err = HMACAuthError{invalidSignature}
-						}
-					} else {
-						err = HMACAuthError{invalidAPIKey}
+				sts = stringToSign(req, &options, ab.TimestampString)
+				if sk := options.SecretKey(ab.APIKey); sk != empty {
+					if ab.Signature != signString(sts, sk) {
+						err = HMACAuthError{invalidSignature}
 					}
+				} else {
+					err = HMACAuthError{invalidAPIKey}
 				}
 			}
 		}
@@ -95,13 +95,24 @@ func HMACAuth(options Options) middleware {
 	}
 }
 
+func GetTimestamp() string {
+	return time.Now().Format(time.RFC3339)
+}
+
+func SignRequest(req *http.Request, apiKey string, secret string, options *Options, timestamp string) {
+	sts := stringToSign(req, options, timestamp)
+	signature := signString(sts, secret)
+	authHeader := fmt.Sprintf("APIKey=%s,Signature=%s,Timestamp=%s", apiKey, signature, timestamp)
+	req.Header.Set(authorizationHeader, authHeader)
+}
+
 func signString(str string, secret string) string {
 	hash := hmac.New(sha256.New, []byte(secret))
 	hash.Write([]byte(str))
 	return base64.StdEncoding.EncodeToString(hash.Sum(nil))
 }
 
-func stringToSign(req *http.Request, options *Options, timestamp string) (string, error) {
+func stringToSign(req *http.Request, options *Options, timestamp string) string {
 	var buffer bytes.Buffer
 
 	// Standard
@@ -125,7 +136,7 @@ func stringToSign(req *http.Request, options *Options, timestamp string) (string
 		}
 	}
 
-	return buffer.String(), nil
+	return buffer.String()
 }
 
 func parseAuthHeader(header string) (*authBits, error) {

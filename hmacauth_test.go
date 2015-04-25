@@ -129,13 +129,11 @@ func Test_stringToSign(t *testing.T) {
 	timestampStr := time.Now().Format(time.RFC3339)
 	options := Options{}
 
-	str, err := stringToSign(req, &options, timestampStr)
+	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
 		"/some/path?key=value&more=stuff\n" +
 		timestampStr + "\n"
-
-	expect(t, err, nil)
 	expect(t, expectedStr, str)
 }
 
@@ -149,7 +147,7 @@ func Test_stringToSign_with_headers(t *testing.T) {
 		SignedHeaders: []string{"X-Test1", "X-Test2"},
 	}
 
-	str, err := stringToSign(req, &options, timestampStr)
+	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
 		"/some/path?key=value&more=stuff\n" +
@@ -157,7 +155,6 @@ func Test_stringToSign_with_headers(t *testing.T) {
 		"12345678\n" +
 		"87654321\n"
 
-	expect(t, err, nil)
 	expect(t, expectedStr, str)
 }
 
@@ -171,7 +168,7 @@ func Test_stringToSign_with_ordered_headers(t *testing.T) {
 		SignedHeaders: []string{"B-Test", "A-Test"},
 	}
 
-	str, err := stringToSign(req, &options, timestampStr)
+	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
 		"/some/path?key=value&more=stuff\n" +
@@ -179,7 +176,6 @@ func Test_stringToSign_with_ordered_headers(t *testing.T) {
 		"87654321\n" +
 		"12345678\n"
 
-	expect(t, err, nil)
 	expect(t, expectedStr, str)
 }
 
@@ -192,7 +188,7 @@ func Test_stringToSign_missing_required_header(t *testing.T) {
 		SignedHeaders: []string{"X-Test1", "X-Test2"},
 	}
 
-	str, err := stringToSign(req, &options, timestampStr)
+	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
 		"/some/path?key=value&more=stuff\n" +
@@ -200,7 +196,6 @@ func Test_stringToSign_missing_required_header(t *testing.T) {
 		"12345678\n" +
 		"\n"
 
-	expect(t, err, nil)
 	expect(t, expectedStr, str)
 }
 
@@ -313,7 +308,7 @@ func Test_HMACAuth(t *testing.T) {
 
 	timestampStr := time.Now().Format(time.RFC3339)
 	req, _ := http.NewRequest("GET", "http://testhost.test/some/path?key=value&more=stuff", nil)
-	strToSign, _ := stringToSign(req, &options, timestampStr)
+	strToSign := stringToSign(req, &options, timestampStr)
 	sig := signString(strToSign, options.SecretKey(""))
 
 	authHeader :=
@@ -322,6 +317,31 @@ func Test_HMACAuth(t *testing.T) {
 
 	w := httptest.NewRecorder()
 
+	middlewareFunc(w, req)
+	expect(t, w.Code, 200)
+}
+
+func Test_SignRequest(t *testing.T) {
+	req, _ := http.NewRequest("GET", "http://testhost.test/some/path?key=value&more=stuff", nil)
+	req.Header.Add("B-Test", "87654321")
+	req.Header.Add("A-Test", "12345678")
+
+	apiKey := "TESTAPIKEY12345"
+	secret := "TESTSECRET12345"
+	timestampStr := GetTimestamp()
+	options := Options{
+		SignedHeaders: []string{"B-Test", "A-Test"},
+		SecretKey: func(apiKey string) string {
+			return secret
+		},
+	}
+
+	SignRequest(req, apiKey, secret, &options, timestampStr)
+	refute(t, req.Header.Get(authorizationHeader), "")
+
+	// test using handler
+	middlewareFunc := HMACAuth(options)
+	w := httptest.NewRecorder()
 	middlewareFunc(w, req)
 	expect(t, w.Code, 200)
 }
