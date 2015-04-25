@@ -13,6 +13,8 @@ const (
 	secretKeyRequired = "HMACAuth Secret Key Locator Required"
 	repeatedParameter = "Repeated parameter: %q in header string"
 	missingHeader     = "Missing required header: %q"
+	missingMD5        = "Missing Content-MD5 for body"
+	invalidMD5        = "Invalid Content-MD5 for body"
 )
 
 type HMACAuthError struct {

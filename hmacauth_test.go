@@ -1,6 +1,8 @@
 package hmacauth
 
 import (
+	"bytes"
+	"crypto/md5"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -344,4 +346,54 @@ func Test_SignRequest(t *testing.T) {
 	w := httptest.NewRecorder()
 	middlewareFunc(w, req)
 	expect(t, w.Code, 200)
+}
+
+func Test_SignPOSTRequest(t *testing.T) {
+	jsonStr := []byte(`{foo:"bar"}`)
+	req, _ := http.NewRequest("POST", "http://testhost.test/some/path?key=value&more=stuff", bytes.NewBuffer(jsonStr))
+	req.Header.Add("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	req.Header.Add("B-Test", "87654321")
+	req.Header.Add("A-Test", "12345678")
+
+	apiKey := "TESTAPIKEY12345"
+	secret := "TESTSECRET12345"
+	timestampStr := GetTimestamp()
+	options := Options{
+		SignedHeaders: []string{"Content-MD5", "B-Test", "A-Test"},
+		SecretKey: func(apiKey string) string {
+			return secret
+		},
+	}
+
+	SignRequest(req, apiKey, secret, &options, timestampStr)
+	refute(t, req.Header.Get(authorizationHeader), "")
+
+	// test using handler
+	middlewareFunc := HMACAuth(options)
+	w := httptest.NewRecorder()
+	middlewareFunc(w, req)
+	expect(t, w.Code, 200)
+
+	// corrupt request by changing md5
+	jsonStr = []byte(`{foo:"bar2"}`)
+	req.Header.Set("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	// before signing -> sign does not match md5 header
+	w = httptest.NewRecorder()
+	middlewareFunc(w, req)
+	expect(t, w.Code, 401)
+	// after signing -> md5 header matches sign but not body
+	w = httptest.NewRecorder()
+	SignRequest(req, apiKey, secret, &options, timestampStr)
+	middlewareFunc(w, req)
+	expect(t, w.Code, 401)
+	// setting body makes it valid again -> sign, md5, body matches
+	req, _ = http.NewRequest("POST", "http://testhost.test/some/path?key=value&more=stuff", bytes.NewBuffer(jsonStr))
+	req.Header.Add("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	req.Header.Add("B-Test", "87654321")
+	req.Header.Add("A-Test", "12345678")
+	SignRequest(req, apiKey, secret, &options, timestampStr)
+	w = httptest.NewRecorder()
+	middlewareFunc(w, req)
+	expect(t, w.Code, 200)
+
 }

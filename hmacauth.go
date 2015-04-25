@@ -3,9 +3,11 @@ package hmacauth
 import (
 	"bytes"
 	"crypto/hmac"
+	"crypto/md5"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
@@ -18,6 +20,7 @@ const (
 	apiKeyParam         = "APIKey"
 	signatureParam      = "Signature"
 	timestampParam      = "Timestamp"
+	contentMD5          = "Content-MD5"
 
 	// timestamp validation
 	maxNegativeTimeOffset time.Duration = -10 * time.Second
@@ -79,7 +82,31 @@ func HMACAuth(options Options) middleware {
 				var sts string
 				sts = stringToSign(req, &options, ab.TimestampString)
 				if sk := options.SecretKey(ab.APIKey); sk != empty {
-					if ab.Signature != signString(sts, sk) {
+					if ab.Signature == signString(sts, sk) {
+						if req.Body != nil {
+							// check if MD5 is present
+							for _, header := range options.SignedHeaders {
+								if header == contentMD5 {
+									// then there should be MD5 hash for body
+									if req.Header.Get(contentMD5) != "" {
+										// read body
+										bodyBytes, _ := ioutil.ReadAll(req.Body)
+										// calculate MD5
+										md5String := fmt.Sprintf("%x", md5.Sum(bodyBytes))
+										// compare to MD5 given
+										if req.Header.Get(contentMD5) != md5String {
+											err = HMACAuthError{invalidMD5}
+										} else {
+											// restore body
+											req.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+										}
+									} else {
+										err = HMACAuthError{missingMD5}
+									}
+								}
+							}
+						}
+					} else {
 						err = HMACAuthError{invalidSignature}
 					}
 				} else {
