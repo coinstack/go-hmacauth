@@ -212,8 +212,8 @@ func Test_HMACAuth_invalid_options(t *testing.T) {
 
 func Test_HMACAuth_no_auth_header(t *testing.T) {
 	options := Options{
-		SecretKey: func(apiKey string) string {
-			return "secret"
+		SecretKey: func(apiKey string) (string, string) {
+			return "", "secret"
 		},
 	}
 	middlewareFunc := HMACAuth(options)
@@ -228,8 +228,8 @@ func Test_HMACAuth_no_auth_header(t *testing.T) {
 
 func Test_HMACAuth_bad_api_key(t *testing.T) {
 	options := Options{
-		SecretKey: func(apiKey string) string {
-			return ""
+		SecretKey: func(apiKey string) (string, string) {
+			return "", ""
 		},
 	}
 	middlewareFunc := HMACAuth(options)
@@ -250,7 +250,7 @@ func Test_HMACAuth_bad_api_key(t *testing.T) {
 func Test_HMACAuth_incorrect_header_order_in_string_to_sign(t *testing.T) {
 	options := Options{
 		SignedHeaders: []string{"A-Test", "B-Test"},
-		SecretKey:     func(apiKey string) string { return "secret" },
+		SecretKey:     func(apiKey string) (string, string) { return "", "secret" },
 	}
 	middlewareFunc := HMACAuth(options)
 
@@ -281,8 +281,8 @@ func Test_HMACAuth_incorrect_header_order_in_string_to_sign(t *testing.T) {
 
 func Test_HMACAuth_bad_signature(t *testing.T) {
 	options := Options{
-		SecretKey: func(apiKey string) string {
-			return "secret"
+		SecretKey: func(apiKey string) (string, string) {
+			return "", "secret"
 		},
 	}
 	middlewareFunc := HMACAuth(options)
@@ -302,8 +302,8 @@ func Test_HMACAuth_bad_signature(t *testing.T) {
 
 func Test_HMACAuth(t *testing.T) {
 	options := Options{
-		SecretKey: func(apiKey string) string {
-			return "secret"
+		SecretKey: func(apiKey string) (string, string) {
+			return "", "secret"
 		},
 	}
 	middlewareFunc := HMACAuth(options)
@@ -311,7 +311,8 @@ func Test_HMACAuth(t *testing.T) {
 	timestampStr := time.Now().Format(time.RFC3339)
 	req, _ := http.NewRequest("GET", "http://testhost.test/some/path?key=value&more=stuff", nil)
 	strToSign := stringToSign(req, &options, timestampStr)
-	sig := signString(strToSign, options.SecretKey(""))
+	_, secret := options.SecretKey("")
+	sig := signString(strToSign, secret)
 
 	authHeader :=
 		fmt.Sprintf("APIKey=12345678,Signature=%s,Timestamp=%s", sig, timestampStr)
@@ -333,8 +334,8 @@ func Test_SignRequest(t *testing.T) {
 	timestampStr := GetTimestamp()
 	options := Options{
 		SignedHeaders: []string{"B-Test", "A-Test"},
-		SecretKey: func(apiKey string) string {
-			return secret
+		SecretKey: func(apiKey string) (string, string) {
+			return "", secret
 		},
 	}
 
@@ -360,8 +361,8 @@ func Test_SignPOSTRequest(t *testing.T) {
 	timestampStr := GetTimestamp()
 	options := Options{
 		SignedHeaders: []string{"Content-MD5", "B-Test", "A-Test"},
-		SecretKey: func(apiKey string) string {
-			return secret
+		SecretKey: func(apiKey string) (string, string) {
+			return "", secret
 		},
 	}
 

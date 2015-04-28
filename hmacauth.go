@@ -17,6 +17,7 @@ import (
 const (
 	// common parameters
 	authorizationHeader = "Authorization"
+	userHeader          = "User"
 	apiKeyParam         = "APIKey"
 	signatureParam      = "Signature"
 	timestampParam      = "Timestamp"
@@ -35,7 +36,7 @@ const (
 
 type (
 	middleware func(http.ResponseWriter, *http.Request)
-	KeyLocator func(string) string
+	KeyLocator func(string) (string, string)
 )
 
 type Options struct {
@@ -73,15 +74,17 @@ func HMACAuth(options Options) middleware {
 
 	return func(res http.ResponseWriter, req *http.Request) {
 		var (
-			err error
-			ab  *authBits
+			err  error
+			ab   *authBits
+			user string
+			sk   string
 		)
 
 		if ab, err = parseAuthHeader(req.Header.Get(authorizationHeader)); err == nil {
 			if err = validateTimestamp(ab.Timestamp, &options); err == nil {
 				var sts string
 				sts = stringToSign(req, &options, ab.TimestampString)
-				if sk := options.SecretKey(ab.APIKey); sk != empty {
+				if user, sk = options.SecretKey(ab.APIKey); sk != empty {
 					if ab.Signature == signString(sts, sk) {
 						if req.Body != nil {
 							// check if MD5 is present
@@ -119,6 +122,9 @@ func HMACAuth(options Options) middleware {
 			log.Println(err.Error())
 			http.Error(res, err.Error(), 401)
 		}
+
+		// set user as header
+		req.Header.Add(userHeader, user)
 	}
 }
 
