@@ -24,7 +24,7 @@ const (
 	contentMD5          = "Content-MD5"
 
 	// timestamp validation
-	maxNegativeTimeOffset time.Duration = -10 * time.Second
+	maxNegativeTimeOffset time.Duration = -15 * time.Minute
 
 	// parsing bits
 	empty   = ""
