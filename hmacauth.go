@@ -153,7 +153,7 @@ func stringToSign(req *http.Request, options *Options, timestamp string) string 
 	buffer.WriteString(newline)
 	buffer.WriteString(req.Host)
 	buffer.WriteString(newline)
-	buffer.WriteString(req.URL.RequestURI())
+	buffer.WriteString(req.URL.Path)
 	buffer.WriteString(newline)
 	buffer.WriteString(timestamp)
 	buffer.WriteString(newline)
