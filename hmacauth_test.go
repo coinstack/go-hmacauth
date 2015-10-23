@@ -3,6 +3,7 @@ package hmacauth
 import (
 	"bytes"
 	"crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +36,7 @@ func secondsAgo(seconds int32) time.Time {
 }
 
 func Test_validateTimeout_invalid_future_date(t *testing.T) {
-	future := secondsFromNow(60)
+	future := secondsFromNow(60 * 16)
 	err := validateTimestamp(future, &Options{})
 	refute(t, err, nil)
 	expect(t, err.Error(), "Timestamp out of range")
@@ -134,7 +135,7 @@ func Test_stringToSign(t *testing.T) {
 	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
-		"/some/path?key=value&more=stuff\n" +
+		"/some/path\n" +
 		timestampStr + "\n"
 	expect(t, expectedStr, str)
 }
@@ -152,7 +153,7 @@ func Test_stringToSign_with_headers(t *testing.T) {
 	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
-		"/some/path?key=value&more=stuff\n" +
+		"/some/path\n" +
 		timestampStr + "\n" +
 		"12345678\n" +
 		"87654321\n"
@@ -173,7 +174,7 @@ func Test_stringToSign_with_ordered_headers(t *testing.T) {
 	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
-		"/some/path?key=value&more=stuff\n" +
+		"/some/path\n" +
 		timestampStr + "\n" +
 		"87654321\n" +
 		"12345678\n"
@@ -193,7 +194,7 @@ func Test_stringToSign_missing_required_header(t *testing.T) {
 	str := stringToSign(req, &options, timestampStr)
 	expectedStr := "GET\n" +
 		"testhost.test\n" +
-		"/some/path?key=value&more=stuff\n" +
+		"/some/path\n" +
 		timestampStr + "\n" +
 		"12345678\n" +
 		"\n"
@@ -257,7 +258,7 @@ func Test_HMACAuth_incorrect_header_order_in_string_to_sign(t *testing.T) {
 	timestampStr := time.Now().Format(time.RFC3339)
 	badStrToSign := "GET\n" +
 		"testhost.test\n" +
-		"/some/path?key=value&more=stuff\n" +
+		"/some/path\n" +
 		timestampStr + "\n" +
 		"12345678\n" + // Values are in reverse order here
 		"87654321\n"
@@ -352,7 +353,8 @@ func Test_SignRequest(t *testing.T) {
 func Test_SignPOSTRequest(t *testing.T) {
 	jsonStr := []byte(`{foo:"bar"}`)
 	req, _ := http.NewRequest("POST", "http://testhost.test/some/path?key=value&more=stuff", bytes.NewBuffer(jsonStr))
-	req.Header.Add("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	rawMD5 := md5.Sum(jsonStr)
+	req.Header.Add("Content-MD5", base64.StdEncoding.EncodeToString(rawMD5[:]))
 	req.Header.Add("B-Test", "87654321")
 	req.Header.Add("A-Test", "12345678")
 
@@ -377,7 +379,8 @@ func Test_SignPOSTRequest(t *testing.T) {
 
 	// corrupt request by changing md5
 	jsonStr = []byte(`{foo:"bar2"}`)
-	req.Header.Set("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	rawMD5 = md5.Sum(jsonStr)
+	req.Header.Set("Content-MD5", base64.StdEncoding.EncodeToString(rawMD5[:]))
 	// before signing -> sign does not match md5 header
 	w = httptest.NewRecorder()
 	middlewareFunc(w, req)
@@ -389,7 +392,8 @@ func Test_SignPOSTRequest(t *testing.T) {
 	expect(t, w.Code, 401)
 	// setting body makes it valid again -> sign, md5, body matches
 	req, _ = http.NewRequest("POST", "http://testhost.test/some/path?key=value&more=stuff", bytes.NewBuffer(jsonStr))
-	req.Header.Add("Content-MD5", fmt.Sprintf("%x", md5.Sum(jsonStr)))
+	rawMD5 = md5.Sum(jsonStr)
+	req.Header.Add("Content-MD5", base64.StdEncoding.EncodeToString(rawMD5[:]))
 	req.Header.Add("B-Test", "87654321")
 	req.Header.Add("A-Test", "12345678")
 	SignRequest(req, apiKey, secret, &options, timestampStr)

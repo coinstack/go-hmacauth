@@ -98,8 +98,11 @@ func HMACAuth(options Options) middleware {
 											err = HMACAuthError{missingMD5}
 										} else {
 											// calculate MD5
-											md5String := fmt.Sprintf("%x", md5.Sum(bodyBytes))
+											rawMD5 := md5.Sum(bodyBytes)
+											md5String := base64.StdEncoding.EncodeToString(rawMD5[:])
 											// compare to MD5 given
+											log.Printf("[%v]", md5String)
+											log.Printf("[%v]", req.Header.Get(contentMD5))
 											if req.Header.Get(contentMD5) != md5String {
 												err = HMACAuthError{invalidMD5}
 											}
