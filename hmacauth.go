@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -101,8 +100,6 @@ func HMACAuth(options Options) middleware {
 											rawMD5 := md5.Sum(bodyBytes)
 											md5String := base64.StdEncoding.EncodeToString(rawMD5[:])
 											// compare to MD5 given
-											log.Printf("[%v]", md5String)
-											log.Printf("[%v]", req.Header.Get(contentMD5))
 											if req.Header.Get(contentMD5) != md5String {
 												err = HMACAuthError{invalidMD5}
 											}
@@ -122,7 +119,6 @@ func HMACAuth(options Options) middleware {
 		}
 
 		if err != nil {
-			log.Println(err.Error())
 			http.Error(res, err.Error(), 401)
 		}
 
